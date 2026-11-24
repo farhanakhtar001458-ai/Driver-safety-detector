@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Databases & runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+data/reports/
+data/*.db
+!data/.gitkeep
+
+# Frontend
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+.env
+.env.local
+.env.*.local
+
+# Tooling / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.coverage
+htmlcov/
+
+# Arena / sandbox internals
+.arena/

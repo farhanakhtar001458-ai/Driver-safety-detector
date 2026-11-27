@@ -176,6 +176,7 @@ class TelemetrySimulator:
             self._ensure_states(db)
             now = datetime.utcnow()
             live = []
+            live_by_org: dict[int, list[dict]] = {}
             with self._lock:
                 states = list(self.states.values())
             for state in states:
@@ -217,7 +218,7 @@ class TelemetrySimulator:
                         source="simulated",
                         is_simulated=True,
                     )
-                live.append(
+                live_row = (
                     {
                         "vehicle_id": vehicle.id,
                         "registration_number": vehicle.registration_number,
@@ -234,17 +235,20 @@ class TelemetrySimulator:
                         "route": state.route.name,
                     }
                 )
+                live.append(live_row)
+                live_by_org.setdefault(vehicle.organisation_id, []).append(live_row)
             if live:
                 db.commit()
-                manager.publish(
-                    None,
-                    {
-                        "type": "fleet_update",
-                        "server_time": now.isoformat() + "Z",
-                        "simulated": True,
-                        "vehicles": live,
-                    },
-                )
+                for organisation_id, org_vehicles in live_by_org.items():
+                    manager.publish(
+                        organisation_id,
+                        {
+                            "type": "fleet_update",
+                            "server_time": now.isoformat() + "Z",
+                            "simulated": True,
+                            "vehicles": org_vehicles,
+                        },
+                    )
             # Housekeeping: close stale trips and trim very old simulated points.
             if int(time.time()) % 300 < settings.SIMULATOR_INTERVAL_SECONDS:
                 close_stale_trips(db)

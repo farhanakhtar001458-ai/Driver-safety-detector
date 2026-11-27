@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 300
 
     # --- Demo / simulation -------------------------------------------------
-    DEMO_MODE: bool = True
-    SEED_DEMO_DATA: bool = True
-    SIMULATOR_ENABLED: bool = True
+    DEMO_MODE: bool = False
+    SEED_DEMO_DATA: bool = False
+    SIMULATOR_ENABLED: bool = False
     SIMULATOR_INTERVAL_SECONDS: int = 3
     SIMULATOR_VEHICLE_COUNT: int = 6
 

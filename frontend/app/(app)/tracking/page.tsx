@@ -18,7 +18,8 @@ export default function TrackingPage() {
   const [trailMinutes, setTrailMinutes] = useState(180);
   const [trails, setTrails] = useState<MapTrail[]>([]);
   const [geofences, setGeofences] = useState<MapGeofence[]>([]);
-  const [selected, setSelected] = useState<LiveVehicle | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selected = vehicles.find((vehicle) => vehicle.vehicle_id === selectedId) ?? null;
   const [loading, setLoading] = useState(true);
   const [showGeofence, setShowGeofence] = useState(false);
   const [geofenceForm, setGeofenceForm] = useState({ name: "", center_latitude: 23.2599, center_longitude: 77.4126, radius_meters: 500, description: "" });
@@ -104,7 +105,9 @@ export default function TrackingPage() {
         }
       />
 
-      <DemoBanner message="All vehicle positions and trails on this page are simulator-generated and labelled. No real GPS hardware is connected." />
+      {(vehicles.some((vehicle) => vehicle.is_simulated) || trails.some((trail) => trail.is_simulated)) && (
+        <DemoBanner message="Simulated vehicle positions and trails are labelled. Verify data sources before making safety decisions." />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -135,7 +138,7 @@ export default function TrackingPage() {
           padded={false}
           title={
             <span className="flex items-center gap-2">
-              Fleet positions <SimulatedBadge />
+              Fleet positions {vehicles.some((vehicle) => vehicle.is_simulated) && <SimulatedBadge />}
             </span>
           }
           subtitle={
@@ -167,8 +170,8 @@ export default function TrackingPage() {
               trails={trails}
               geofences={geofences}
               height={520}
-              selectedId={selected?.vehicle_id ?? null}
-              onSelect={setSelected}
+              selectedId={selectedId}
+              onSelect={(vehicle) => setSelectedId(vehicle.vehicle_id)}
             />
           </div>
           <div className="flex flex-wrap items-center gap-4 border-t border-ink-100 px-4 py-2.5 text-[11px] text-ink-500 dark:border-white/5 dark:text-ink-400">
@@ -192,7 +195,7 @@ export default function TrackingPage() {
                     return (
                       <button
                         key={vehicle.vehicle_id}
-                        onClick={() => setSelected(vehicle)}
+                        onClick={() => setSelectedId(vehicle.vehicle_id)}
                         className={cn(
                           "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition",
                           active ? "bg-brand-50 ring-1 ring-brand-200 dark:bg-brand-500/10 dark:ring-brand-500/30" : "hover:bg-ink-50 dark:hover:bg-white/5",
@@ -310,7 +313,7 @@ export default function TrackingPage() {
       <Card title="How tracking behaves" subtitle="Honest limits of this deployment" className="mt-4">
         <ul className="grid gap-2 text-xs leading-relaxed text-ink-600 dark:text-ink-300 sm:grid-cols-2">
           <li className="flex gap-2"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" /> Map tiles load from OpenStreetMap and need internet access at the browser.</li>
-          <li className="flex gap-2"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" /> Telemetry in this environment is simulated; ingest accepts real devices via API key.</li>
+          <li className="flex gap-2"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" /> Simulated positions are labelled; configured devices can send real telemetry via API key.</li>
           <li className="flex gap-2"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" /> Route-deviation detection is indicative and based on the configured route polyline.</li>
           <li className="flex gap-2"><TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" /> Geofence alerts never contact emergency services automatically.</li>
         </ul>
@@ -324,11 +327,11 @@ export default function TrackingPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowGeofence(false)}>Cancel</Button>
-            <Button onClick={createGeofence} loading={saving}>Create geofence</Button>
+            <Button type="submit" form="geofence-form" loading={saving}>Create geofence</Button>
           </>
         }
       >
-        <form onSubmit={createGeofence} className="grid gap-4 sm:grid-cols-2">
+        <form id="geofence-form" onSubmit={createGeofence} className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className="label">Name *</span>
             <Input value={geofenceForm.name} onChange={(event) => setGeofenceForm({ ...geofenceForm, name: event.target.value })} required minLength={2} placeholder="Bhopal depot" />
@@ -349,7 +352,6 @@ export default function TrackingPage() {
             <span className="label">Description</span>
             <Input value={geofenceForm.description} onChange={(event) => setGeofenceForm({ ...geofenceForm, description: event.target.value })} placeholder="Optional note" />
           </label>
-          <button type="submit" className="hidden" aria-hidden="true" />
         </form>
       </Modal>
 

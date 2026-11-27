@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import type { LiveVehicle } from "@/lib/types";
+import { validCoordinates } from "@/lib/map";
 import { VEHICLE_STATUS_LABELS } from "@/lib/format";
 
 export interface MapTrail {
@@ -45,21 +46,36 @@ function vehicleIcon(status: string, speed: number) {
   return L.divIcon({ className: "leaflet-div-icon", html, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -12] });
 }
 
-function FitBounds({ vehicles, trails }: { vehicles: LiveVehicle[]; trails?: MapTrail[] }) {
+function MapViewport({ vehicles, trails, selectedId }: { vehicles: LiveVehicle[]; trails: MapTrail[]; selectedId?: number | null }) {
   const map = useMap();
+  const fitted = useRef(false);
+  const lastSelection = useRef<number | null>(null);
   useEffect(() => {
+    if (fitted.current) return;
     const points: [number, number][] = [
-      ...vehicles.filter((v) => v.latitude && v.longitude).map((v) => [v.latitude, v.longitude] as [number, number]),
-      ...(trails ?? []).flatMap((trail) => trail.points.slice(-2).map((p) => [p.latitude, p.longitude] as [number, number])),
+      ...vehicles.filter((v) => validCoordinates(v.latitude, v.longitude)).map((v) => [v.latitude, v.longitude] as [number, number]),
+      ...trails.flatMap((trail) => trail.points.filter((p) => validCoordinates(p.latitude, p.longitude)).slice(-2).map((p) => [p.latitude, p.longitude] as [number, number])),
     ];
     if (!points.length) return;
-    if (points.length === 1) {
-      map.setView(points[0], 13);
-      return;
-    }
-    const bounds = L.latLngBounds(points);
-    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+    fitted.current = true;
+    if (points.length === 1) map.setView(points[0], 13);
+    else map.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: 14 });
   }, [vehicles, trails, map]);
+  useEffect(() => {
+    if (selectedId == null) { lastSelection.current = null; return; }
+    if (lastSelection.current === selectedId) return;
+    const vehicle = vehicles.find((v) => v.vehicle_id === selectedId && validCoordinates(v.latitude, v.longitude));
+    if (vehicle) {
+      lastSelection.current = selectedId;
+      map.setView([vehicle.latitude, vehicle.longitude], Math.max(map.getZoom(), 13));
+    }
+  }, [selectedId, vehicles, map]);
+  useEffect(() => {
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
   return null;
 }
 
@@ -81,7 +97,7 @@ export default function FleetMap({
   className?: string;
 }) {
   const centre = useMemo<[number, number]>(() => {
-    const first = vehicles.find((v) => v.latitude && v.longitude);
+    const first = vehicles.find((v) => validCoordinates(v.latitude, v.longitude));
     return first ? [first.latitude, first.longitude] : [23.2599, 77.4126];
   }, [vehicles]);
 
@@ -94,9 +110,9 @@ export default function FleetMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds vehicles={vehicles} trails={trails} />
+        <MapViewport vehicles={vehicles} trails={trails} selectedId={selectedId} />
 
-        {geofences.map((fence) => (
+        {geofences.filter((fence) => validCoordinates(fence.center_latitude, fence.center_longitude) && Number.isFinite(fence.radius_meters) && fence.radius_meters > 0).map((fence) => (
           <Circle
             key={fence.id}
             center={[fence.center_latitude, fence.center_longitude]}
@@ -121,12 +137,12 @@ export default function FleetMap({
         {trails.map((trail, index) => (
           <Polyline
             key={trail.vehicle_id}
-            positions={trail.points.map((point) => [point.latitude, point.longitude] as [number, number])}
+            positions={trail.points.filter((point) => validCoordinates(point.latitude, point.longitude)).map((point) => [point.latitude, point.longitude] as [number, number])}
             pathOptions={{ color: trailColours[index % trailColours.length], weight: 3, opacity: 0.65 }}
           />
         ))}
 
-        {vehicles.map((vehicle) => (
+        {vehicles.filter((vehicle) => validCoordinates(vehicle.latitude, vehicle.longitude)).map((vehicle) => (
           <Marker
             key={vehicle.vehicle_id}
             position={[vehicle.latitude, vehicle.longitude]}

@@ -1,5 +1,7 @@
 """Regression coverage for tracking streams and tenant isolation."""
 
+import time
+
 from app.models import Vehicle
 from app.services.simulator import TelemetrySimulator
 from app.services.ws_hub import manager
@@ -21,6 +23,10 @@ def test_websocket_disconnect_cleans_up_room_and_user(client):
         assert snapshot["type"] == "fleet_snapshot"
         assert all("ignition_on" in vehicle for vehicle in snapshot["vehicles"])
         assert len(manager.rooms[org_id]) == before_room + 1
+    # The ASGI disconnect handler runs asynchronously after the client exits.
+    deadline = time.monotonic() + 2
+    while len(manager.rooms.get(org_id, set())) != before_room and time.monotonic() < deadline:
+        time.sleep(0.01)
     assert len(manager.rooms.get(org_id, set())) == before_room
     assert len(manager.user_sockets.get(user_id, set())) == before_user
 

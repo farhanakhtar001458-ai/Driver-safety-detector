@@ -146,7 +146,7 @@ export default function FleetMap({
           <Marker
             key={vehicle.vehicle_id}
             position={[vehicle.latitude, vehicle.longitude]}
-            icon={vehicleIcon(vehicle.status, vehicle.speed_kph)}
+            icon={vehicleIcon(vehicle.status, vehicle.source === "phone" ? 0 : vehicle.speed_kph)}
             eventHandlers={{ click: () => onSelect?.(vehicle) }}
           >
             <Popup>
@@ -159,7 +159,7 @@ export default function FleetMap({
                 </div>
                 <p className="mt-1 text-ink-500">{vehicle.driver_name ?? "Unassigned"}</p>
                 <p className="mt-0.5 text-ink-500">
-                  {vehicle.speed_kph.toFixed(0)} km/h · {vehicle.vehicle_type}
+                  {vehicle.source === "phone" ? "Phone GPS · speed may be unavailable" : `${vehicle.speed_kph.toFixed(0)} km/h`} · {vehicle.vehicle_type}
                 </p>
                 {vehicle.is_simulated && (
                   <p className="mt-1.5 rounded-md bg-amber-50 px-1.5 py-1 text-[10px] font-medium text-amber-700">

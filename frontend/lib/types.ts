@@ -142,6 +142,7 @@ export interface LiveVehicle {
   last_seen: string;
   is_simulated: boolean;
   today_distance_km?: number;
+  source?: string;
 }
 
 export interface LocationPoint {

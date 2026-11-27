@@ -222,6 +222,17 @@ class GPSPointIn(BaseModel):
     fault_codes: Optional[List[str]] = Field(default=None, max_length=10)
 
 
+class PhoneLocationRequest(BaseModel):
+    # Phone coordinates are a voluntary, unverified location observation, not
+    # vehicle diagnostics. Browser speed and heading are frequently unavailable.
+    vehicle_id: int = Field(gt=0)
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    accuracy_m: float = Field(ge=0, le=1000, allow_inf_nan=False)
+    speed_kph: Optional[float] = Field(default=None, ge=0, le=300, allow_inf_nan=False)
+    heading: Optional[float] = Field(default=None, ge=0, le=360, allow_inf_nan=False)
+
+
 class GPSIngestRequest(BaseModel):
     vehicle_id: Optional[int] = None
     points: List[GPSPointIn] = Field(min_length=1, max_length=500)
@@ -263,6 +274,7 @@ class LiveVehicleOut(BaseModel):
     last_seen: datetime
     is_simulated: bool
     today_distance_km: float = 0.0
+    source: str = "device"
 
 
 class GeofenceIn(BaseModel):

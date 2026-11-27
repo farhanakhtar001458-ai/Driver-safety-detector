@@ -15,6 +15,7 @@ from app.core.deps import (
     ensure_org_access,
     get_db,
     get_device,
+    get_current_user,
     get_organisation,
     org_filter,
     require_permission,
@@ -37,6 +38,7 @@ from app.schemas.fleet import (
     GPSIngestRequest,
     GPSIngestResponse,
     LiveVehicleOut,
+    PhoneLocationRequest,
     LocationOut,
 )
 from app.services import telemetry
@@ -46,6 +48,47 @@ from app.services.notifications import create_notification
 from app.services.serializers import vehicle_out
 
 router = APIRouter(prefix="/gps", tags=["GPS & Tracking"])
+
+
+def _phone_vehicles(db: Session, user: User):
+    """Phones may only report for their tenant; drivers only for assigned vehicles."""
+    if not user.organisation_id or user.role not in {"org_admin", "fleet_manager", "driver"}:
+        raise HTTPException(status_code=403, detail="Phone GPS is not available for this role")
+    query = db.query(Vehicle).filter(
+        Vehicle.organisation_id == user.organisation_id, Vehicle.is_archived.is_(False)
+    )
+    if user.role == "driver":
+        query = query.join(Driver, Vehicle.assigned_driver_id == Driver.id).filter(
+            Driver.user_id == user.id, Driver.organisation_id == user.organisation_id
+        )
+    return query
+
+
+@router.get("/phone/vehicles")
+def phone_vehicles(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    vehicles = _phone_vehicles(db, user).order_by(Vehicle.registration_number).all()
+    return [{"id": vehicle.id, "registration_number": vehicle.registration_number} for vehicle in vehicles]
+
+
+@router.post("/phone", status_code=201)
+def phone_location(payload: PhoneLocationRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Save a live phone position. Does not infer trips, ignition or safety events."""
+    vehicle = _phone_vehicles(db, user).filter(Vehicle.id == payload.vehicle_id).first()
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found or not assigned to you")
+    # Current schema requires numeric speed/heading and ignition. Defaults are
+    # placeholders, not measurements. The UI labels phone telemetry accordingly.
+    location = VehicleLocation(
+        organisation_id=vehicle.organisation_id, vehicle_id=vehicle.id, device_id=None,
+        latitude=payload.latitude, longitude=payload.longitude,
+        speed_kph=payload.speed_kph if payload.speed_kph is not None else 0,
+        heading=payload.heading if payload.heading is not None else 0,
+        accuracy_m=payload.accuracy_m, odometer_km=vehicle.mileage_km or 0,
+        ignition_on=False, source="phone", is_simulated=False, recorded_at=datetime.utcnow(),
+    )
+    db.add(location)
+    db.flush()
+    return {"accepted": 1, "vehicle_id": vehicle.id, "source": "phone"}
 
 
 @router.post("/ingest", response_model=GPSIngestResponse)
@@ -220,6 +263,7 @@ def _live_row(db: Session, vehicle: Vehicle, location: Optional[VehicleLocation]
         last_seen=location.recorded_at,
         is_simulated=location.is_simulated,
         today_distance_km=round(distance, 1),
+        source=location.source,
     )
 
 

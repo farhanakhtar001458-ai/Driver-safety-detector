@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useLiveFleet } from "@/lib/live";
 import type { DrivingEvent, LiveVehicle, Vehicle } from "@/lib/types";
 import type { Paginated } from "@/lib/api";
+import PhoneGps from "@/components/map/PhoneGps";
 import FleetMap, { type MapGeofence, type MapTrail } from "@/components/map/FleetMap";
 import { Badge, Button, Card, DemoBanner, EmptyState, Input, Modal, PageHeader, PageSkeleton, Select, SimulatedBadge, toast } from "@/components/ui";
 import { cn, formatKm, severityTone, timeAgo, VEHICLE_STATUS_LABELS } from "@/lib/format";
@@ -80,9 +81,9 @@ export default function TrackingPage() {
     }
   };
 
-  const moving = vehicles.filter((vehicle) => vehicle.speed_kph > 3).length;
+  const moving = vehicles.filter((vehicle) => vehicle.source !== "phone" && vehicle.speed_kph > 3).length;
   const offline = vehicles.filter((vehicle) => vehicle.status === "offline").length;
-  const maxSpeed = useMemo(() => Math.max(0, ...vehicles.map((vehicle) => vehicle.speed_kph)), [vehicles]);
+  const maxSpeed = useMemo(() => Math.max(0, ...vehicles.filter((vehicle) => vehicle.source !== "phone").map((vehicle) => vehicle.speed_kph)), [vehicles]);
   const totalToday = useMemo(() => vehicles.reduce((sum, vehicle) => sum + (vehicle.today_distance_km ?? 0), 0), [vehicles]);
 
   if (loading && !vehicles.length) return <PageSkeleton cards={4} />;
@@ -104,6 +105,8 @@ export default function TrackingPage() {
           </>
         }
       />
+
+      <PhoneGps />
 
       {(vehicles.some((vehicle) => vehicle.is_simulated) || trails.some((trail) => trail.is_simulated)) && (
         <DemoBanner message="Simulated vehicle positions and trails are labelled. Verify data sources before making safety decisions." />
@@ -206,7 +209,7 @@ export default function TrackingPage() {
                           <span className="block truncate text-xs font-semibold text-ink-900 dark:text-white">{vehicle.registration_number}</span>
                           <span className="block truncate text-[10px] text-ink-400">{vehicle.driver_name ?? "Unassigned"}</span>
                         </span>
-                        <span className="text-xs font-semibold tabular-nums text-ink-700 dark:text-ink-200">{vehicle.speed_kph.toFixed(0)}</span>
+                        <span className="text-xs font-semibold tabular-nums text-ink-700 dark:text-ink-200">{vehicle.source === "phone" ? "GPS" : vehicle.speed_kph.toFixed(0)}</span>
                       </button>
                     );
                   })}
@@ -221,9 +224,9 @@ export default function TrackingPage() {
                 {[
                   ["Driver", selected.driver_name ?? "Unassigned"],
                   ["Status", VEHICLE_STATUS_LABELS[selected.status] ?? selected.status],
-                  ["Speed", `${selected.speed_kph.toFixed(1)} km/h`],
-                  ["Heading", `${selected.heading.toFixed(0)}°`],
-                  ["Ignition", selected.ignition_on ? "On" : "Off"],
+                  ["Speed", selected.source === "phone" ? "Not verified (phone GPS)" : `${selected.speed_kph.toFixed(1)} km/h`],
+                  ["Heading", selected.source === "phone" ? "Not verified (phone GPS)" : `${selected.heading.toFixed(0)}°`],
+                  ["Ignition", selected.source === "phone" ? "Unknown (phone GPS)" : selected.ignition_on ? "On" : "Off"],
                   ["Distance today", formatKm(selected.today_distance_km ?? 0)],
                   ["Last seen", timeAgo(selected.last_seen)],
                 ].map(([label, value]) => (

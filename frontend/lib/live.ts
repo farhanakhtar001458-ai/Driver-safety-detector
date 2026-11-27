@@ -26,8 +26,13 @@ export function useLiveFleet(enabled = true, intervalMs = 5000) {
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let polling = false;
+    attempts.current = 0;
 
     const poll = async () => {
+      if (cancelled || polling) return;
+      polling = true;
       try {
         const data = await api.get<LiveVehicle[]>("/gps/live");
         if (cancelled) return;
@@ -35,18 +40,20 @@ export function useLiveFleet(enabled = true, intervalMs = 5000) {
         setLastUpdated(new Date());
         setConnection((current) => (current === "websocket" ? current : "polling"));
       } catch {
-        if (!cancelled) setConnection("error");
+        if (!cancelled) setConnection((current) => current === "websocket" ? current : "error");
+      } finally {
+        polling = false;
       }
     };
 
     const startPolling = () => {
-      if (pollRef.current) return;
+      if (cancelled || pollRef.current) return;
       void poll();
       pollRef.current = setInterval(poll, intervalMs);
     };
 
     const connectSocket = () => {
-      if (typeof window === "undefined") return;
+      if (cancelled || typeof window === "undefined") return;
       const token = tokenStore.get().access;
       if (!token) {
         startPolling();
@@ -66,20 +73,26 @@ export function useLiveFleet(enabled = true, intervalMs = 5000) {
       socket.onopen = () => {
         attempts.current = 0;
         if (!cancelled) setConnection("websocket");
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
+        // Real device ingestion does not broadcast WebSocket updates yet.
+        // Keep periodic REST refresh active even while the socket is connected.
+        startPolling();
       };
       socket.onmessage = (event) => {
+        if (cancelled) return;
         try {
           const payload = JSON.parse(event.data);
           if (payload.type === "fleet_update" && Array.isArray(payload.vehicles)) {
-            setVehicles(payload.vehicles);
+            setVehicles((current) => {
+              const byId = new Map(current.map((vehicle) => [vehicle.vehicle_id, vehicle]));
+              for (const vehicle of payload.vehicles as LiveVehicle[]) {
+                byId.set(vehicle.vehicle_id, { ...byId.get(vehicle.vehicle_id), ...vehicle });
+              }
+              return Array.from(byId.values());
+            });
             setLastUpdated(new Date());
           } else if (payload.type === "fleet_snapshot" && Array.isArray(payload.vehicles)) {
-            setVehicles(payload.vehicles);
-            setLastUpdated(new Date());
+            // REST is authoritative and includes metrics absent from snapshots.
+            void poll();
           }
         } catch {
           /* ignore malformed frames */
@@ -91,12 +104,12 @@ export function useLiveFleet(enabled = true, intervalMs = 5000) {
       };
       socket.onclose = () => {
         if (cancelled) return;
+        setConnection("connecting");
         attempts.current += 1;
         if (attempts.current >= 2) {
           startPolling();
-          setConnection("polling");
         } else {
-          setTimeout(connectSocket, 1500);
+          reconnectTimer = setTimeout(connectSocket, 1500);
         }
       };
     };
@@ -105,6 +118,7 @@ export function useLiveFleet(enabled = true, intervalMs = 5000) {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       socketRef.current?.close();
       socketRef.current = null;
       if (pollRef.current) {

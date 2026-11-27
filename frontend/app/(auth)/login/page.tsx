@@ -9,20 +9,13 @@ import { Button, Field, Input } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 
-const DEMO_ACCOUNTS = [
-  { label: "Organisation admin", email: "admin@meridian.demo", role: "org_admin" },
-  { label: "Fleet manager", email: "fleet@meridian.demo", role: "fleet_manager" },
-  { label: "Safety officer", email: "safety@meridian.demo", role: "safety_officer" },
-  { label: "Driver", email: "rajesh@meridian.demo", role: "driver" },
-];
-
 function LoginForm() {
   const { login, isAuthenticated } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/overview";
-  const [email, setEmail] = useState("admin@meridian.demo");
-  const [password, setPassword] = useState("Demo@12345");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,8 +79,7 @@ function LoginForm() {
         </div>
 
         <p className="relative text-[10px] leading-relaxed text-ink-500">
-          Demo workspace. Telemetry is simulated and labelled. SafeWay AI does not predict accidents and no AI
-          output should be used as the sole basis for disciplinary action.
+          Safety scores support human review; they do not predict accidents and should not be used as the sole basis for disciplinary action.
         </p>
       </div>
 
@@ -154,27 +146,6 @@ function LoginForm() {
               Sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
-
-          <div className="mt-6 rounded-2xl border border-dashed border-ink-300 bg-white/60 p-4 dark:border-white/15 dark:bg-white/5">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              <p className="text-xs font-semibold text-ink-800 dark:text-ink-100">Demo accounts</p>
-            </div>
-            <p className="mt-1 text-[11px] text-ink-500 dark:text-ink-400">Password for every demo account: <code className="rounded bg-ink-100 px-1 py-0.5 dark:bg-white/10">Demo@12345</code></p>
-            <div className="mt-3 grid grid-cols-2 gap-1.5">
-              {DEMO_ACCOUNTS.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  onClick={() => setEmail(account.email)}
-                  className="rounded-lg border border-ink-200 px-2.5 py-1.5 text-left transition hover:border-brand-400 hover:bg-brand-50/50 dark:border-white/10 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/10"
-                >
-                  <span className="block text-[11px] font-semibold text-ink-800 dark:text-ink-100">{account.label}</span>
-                  <span className="block truncate text-[10px] text-ink-400">{account.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
 
           <p className="mt-6 text-center text-xs text-ink-500 dark:text-ink-400">
             New organisation?{" "}

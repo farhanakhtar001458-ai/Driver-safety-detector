@@ -9,8 +9,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, case
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
     Driver,
@@ -97,20 +97,25 @@ def dashboard_summary(db: Session, org_id: int, days: int = 30, user=None) -> di
         or 0
     )
 
-    event_rows = (
-        db.query(DrivingEvent)
+    # Aggregate in the database instead of loading every event into Python.
+    event_groups = (
+        db.query(DrivingEvent.event_type, DrivingEvent.severity,
+                 func.count(DrivingEvent.id),
+                 func.sum(case((DrivingEvent.is_simulated.is_(True), 1), else_=0)))
         .filter(DrivingEvent.organisation_id == org_id, DrivingEvent.occurred_at >= since)
+        .group_by(DrivingEvent.event_type, DrivingEvent.severity)
         .all()
     )
-    high_risk = sum(1 for e in event_rows if e.severity in {"high", "critical"})
-    critical = sum(1 for e in event_rows if e.severity == "critical")
-    simulated_events = sum(1 for e in event_rows if e.is_simulated)
-
+    total_events = high_risk = critical = simulated_events = 0
     by_type: dict[str, int] = {}
     by_severity = {"low": 0, "medium": 0, "high": 0, "critical": 0}
-    for event in event_rows:
-        by_type[event.event_type] = by_type.get(event.event_type, 0) + 1
-        by_severity[event.severity] = by_severity.get(event.severity, 0) + 1
+    for event_type, severity, count, simulated in event_groups:
+        total_events += count
+        simulated_events += simulated or 0
+        high_risk += count if severity in {"high", "critical"} else 0
+        critical += count if severity == "critical" else 0
+        by_type[event_type] = by_type.get(event_type, 0) + count
+        by_severity[severity] = by_severity.get(severity, 0) + count
 
     latest_scores = (
         db.query(DriverScore)
@@ -151,6 +156,7 @@ def dashboard_summary(db: Session, org_id: int, days: int = 30, user=None) -> di
 
     incidents = (
         db.query(Incident)
+        .options(joinedload(Incident.vehicle), joinedload(Incident.driver))
         .filter(Incident.organisation_id == org_id, Incident.status != "false_alert")
         .order_by(Incident.occurred_at.desc())
         .all()
@@ -174,16 +180,24 @@ def dashboard_summary(db: Session, org_id: int, days: int = 30, user=None) -> di
             }
         )
 
-    # Vehicle health: latest reading per vehicle.
-    health_rows: dict[int, VehicleHealthReading] = {}
-    for reading in (
-        db.query(VehicleHealthReading)
-        .filter(VehicleHealthReading.organisation_id == org_id)
-        .order_by(VehicleHealthReading.recorded_at.desc())
-        .all()
-    ):
-        if reading.vehicle_id not in health_rows:
-            health_rows[reading.vehicle_id] = reading
+    # Fetch only the latest reading for vehicles shown on the dashboard.
+    vehicle_ids = [vehicle.id for vehicle in vehicles[:8]]
+    ranked_readings = (
+        db.query(
+            VehicleHealthReading.id.label("id"),
+            func.row_number().over(
+                partition_by=VehicleHealthReading.vehicle_id,
+                order_by=(VehicleHealthReading.recorded_at.desc(), VehicleHealthReading.id.desc()),
+            ).label("rank"),
+        )
+        .filter(VehicleHealthReading.organisation_id == org_id,
+                VehicleHealthReading.vehicle_id.in_(vehicle_ids))
+        .subquery()
+    )
+    readings = (db.query(VehicleHealthReading)
+                .join(ranked_readings, VehicleHealthReading.id == ranked_readings.c.id)
+                .filter(ranked_readings.c.rank == 1).all())
+    health_rows = {reading.vehicle_id: reading for reading in readings}
     vehicle_health = []
     for vehicle in vehicles[:8]:
         reading = health_rows.get(vehicle.id)
@@ -253,7 +267,7 @@ def dashboard_summary(db: Session, org_id: int, days: int = 30, user=None) -> di
             "total_distance_km": distance_total,
             "distance_period_km": distance_period,
             "trips_period": trips_period,
-            "total_events": len(event_rows),
+            "total_events": total_events,
             "high_risk_events": high_risk,
             "critical_events": critical,
             "avg_driver_score": avg_score,
@@ -263,7 +277,7 @@ def dashboard_summary(db: Session, org_id: int, days: int = 30, user=None) -> di
             "open_incidents": open_incidents,
             "critical_incidents": critical_incidents,
             "licences_expiring": licences_expiring,
-            "simulated_share_pct": round(simulated_events / len(event_rows) * 100, 1) if event_rows else 0.0,
+            "simulated_share_pct": round(simulated_events / total_events * 100, 1) if total_events else 0.0,
         },
         "trend": _weekly_trend(db, org_id, 8),
         "events_by_type": [{"type": k, "count": v} for k, v in sorted(by_type.items(), key=lambda kv: -kv[1])],

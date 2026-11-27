@@ -51,26 +51,18 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Open **http://localhost:3000** and sign in with a demo account:
+Open **http://localhost:3000** and create an organisation account. API docs are at
+**http://localhost:8000/api/docs**.
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Organisation admin | `admin@meridian.demo` | `Demo@12345` |
-| Fleet manager | `fleet@meridian.demo` | `Demo@12345` |
-| Safety officer | `safety@meridian.demo` | `Demo@12345` |
-| Driver | `rajesh@meridian.demo` | `Demo@12345` |
-| Platform super admin | `superadmin@safeway.demo` | `Super@12345` |
-
-API docs: **http://localhost:8000/api/docs**
-
-On first start the backend creates the schema and seeds a demo organisation
-(`meridian-logistics`), 12 vehicles, 12 drivers, trips, events, scores, incidents, alerts,
-plans and permissions. All telemetry is `is_simulated=true` and labelled in the UI.
+Demo accounts and telemetry are disabled by default. For an isolated local demo only,
+set `DEMO_MODE=true`, `SEED_DEMO_DATA=true`, and `SIMULATOR_ENABLED=true` in
+`backend/.env` before starting the backend. Never enable these settings for real users.
+Disabling seeding does not remove accounts already present in a database.
 
 ## 3. Docker
 
 ```bash
-docker compose up --build                      # demo stack → http://localhost:8080
+docker compose up --build                      # local stack → http://localhost:8080
 docker compose --profile postgres up -d        # with PostgreSQL + Redis
 docker compose --profile postgres run --rm backend-migrate
 ```

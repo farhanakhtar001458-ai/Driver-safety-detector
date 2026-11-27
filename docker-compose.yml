@@ -1,6 +1,6 @@
 # SafeWay AI - local / staging orchestration.
 #
-#   docker compose up --build                 # demo stack (SQLite, simulator on)
+#   docker compose up --build                 # local stack (SQLite, no demo seed)
 #   docker compose --profile postgres up -d   # with PostgreSQL + Redis
 #   docker compose --profile postgres run --rm backend-migrate
 #
@@ -23,9 +23,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-sqlite:///./data/safeway.db}
       REDIS_URL: ${REDIS_URL:-}
-      DEMO_MODE: ${DEMO_MODE:-true}
-      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
-      SIMULATOR_ENABLED: ${SIMULATOR_ENABLED:-true}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      SIMULATOR_ENABLED: ${SIMULATOR_ENABLED:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
     volumes:
       - backend-data:/app/data

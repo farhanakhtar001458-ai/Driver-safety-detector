@@ -72,9 +72,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
     size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2.5 text-sm",
-    variant === "primary" && "bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus:ring-brand-500/20",
+    variant === "primary" && "bg-brand-700 text-white shadow-sm hover:bg-brand-800 focus:ring-brand-500/20",
     variant === "secondary" &&
       "border border-ink-200 bg-white text-ink-800 hover:bg-ink-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-100 dark:hover:bg-white/10",
     variant === "ghost" && "text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/5",
@@ -91,7 +91,7 @@ export function Button({
   }
 
   return (
-    <button className={classes} disabled={loading || props.disabled} {...props}>
+    <button {...props} className={classes} disabled={loading || props.disabled} aria-busy={loading || undefined}>
       {loading && <Spinner className="h-3.5 w-3.5" />}
       {children}
     </button>
@@ -253,7 +253,7 @@ export function Modal({
             </div>
             <div className="px-6 py-5">{children}</div>
             {footer && (
-              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-ink-100 bg-ink-50/80 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-ink-950/60">
+              <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-ink-100 bg-ink-50/80 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-ink-950/60">
                 {footer}
               </div>
             )}

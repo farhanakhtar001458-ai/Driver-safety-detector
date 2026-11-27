@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Badge, DemoBanner, SimulatedBadge, StatCard, severityToneLocalForTest } from "@/components/ui";
+import { Badge, Button, DemoBanner, SimulatedBadge, StatCard, severityToneLocalForTest } from "@/components/ui";
 
 describe("simulated-data labelling", () => {
   it("renders an explicit simulated badge", () => {
@@ -48,5 +48,13 @@ describe("presentation components", () => {
   it("renders badges with a tone class", () => {
     render(<Badge tone="bg-emerald-50 text-emerald-700">Active</Badge>);
     expect(screen.getByText("Active")).toHaveClass("badge");
+  });
+});
+
+describe("buttons", () => {
+  it("disables the button while loading even when disabled is false", () => {
+    render(<Button loading disabled={false}>Save</Button>);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-busy", "true");
   });
 });

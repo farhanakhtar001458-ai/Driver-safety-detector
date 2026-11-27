@@ -43,6 +43,7 @@ def _initial_snapshot(db: Session, organisation_id: int) -> dict:
                 "longitude": location.longitude,
                 "speed_kph": location.speed_kph,
                 "heading": location.heading,
+                "ignition_on": location.ignition_on,
                 "last_seen": location.recorded_at.isoformat() + "Z",
                 "is_simulated": location.is_simulated,
             }
@@ -65,6 +66,9 @@ async def fleet_stream(
         await websocket.close(code=4401)
         return
     db = SessionLocal()
+    room = None
+    user_id = None
+    connected = False
     try:
         try:
             user_id = int(payload.get("sub"))
@@ -80,6 +84,7 @@ async def fleet_stream(
             await websocket.close(code=4403)
             return
         await manager.connect(websocket, room, user.id)
+        connected = True
         await manager.send_personal(websocket, _initial_snapshot(db, room))
         while True:
             # Client pings are accepted and ignored; server pushes updates.
@@ -89,6 +94,6 @@ async def fleet_stream(
     except Exception:
         pass
     finally:
-        room = organisation_id if (payload and payload.get("role") == "super_admin" and organisation_id) else None
-        manager.disconnect(websocket, room or -1, 0)
+        if connected and room is not None and user_id is not None:
+            manager.disconnect(websocket, room, user_id)
         db.close()
